@@ -14,6 +14,8 @@ const setupError = document.getElementById("setup-error");
 const resetForm = document.getElementById("password-reset-form");
 const resetError = document.getElementById("reset-error");
 const resetToggle = document.getElementById("show-password-reset");
+const setupSignInButton = document.getElementById("owner-password-exists");
+const returnSetupButton = document.getElementById("return-owner-setup");
 const form = document.getElementById("sale-form");
 const salesList = document.getElementById("sales-list");
 const emptyMessage = document.getElementById("empty-message");
@@ -32,6 +34,7 @@ let sales = [];
 let expenses = [];
 let activeDate = getLocalDateString();
 let currentUser = null;
+let ownerSetupNeeded = false;
 
 dateInput.value = activeDate;
 
@@ -424,10 +427,28 @@ async function initializeOwner() {
   ownerSetupForm.hidden = true;
   loginForm.hidden = false;
   resetToggle.hidden = false;
+  returnSetupButton.hidden = true;
+  ownerSetupNeeded = false;
   document.getElementById("login-description").textContent = "Owner account created. Sign in as Renzo.";
   document.getElementById("login-name").value = "Renzo";
   document.getElementById("login-password").focus();
 }
+
+setupSignInButton.addEventListener("click", () => {
+  ownerSetupForm.hidden = true;
+  loginForm.hidden = false;
+  resetToggle.hidden = false;
+  returnSetupButton.hidden = !ownerSetupNeeded;
+  document.getElementById("login-description").textContent = "Sign in with an account already saved in this browser for this website address.";
+  document.getElementById("login-name").focus();
+});
+
+returnSetupButton.addEventListener("click", () => {
+  loginForm.hidden = true;
+  resetForm.hidden = true;
+  ownerSetupForm.hidden = false;
+  resetToggle.hidden = true;
+});
 
 resetToggle.addEventListener("click", () => {
   loginForm.hidden = true;
@@ -509,7 +530,9 @@ loginForm.addEventListener("submit", async event => {
   const password = document.getElementById("login-password").value;
   const user = getUsers().find(item => item.name.toLowerCase() === name.toLowerCase());
   if (!user || !user.active) {
-    loginError.textContent = "Account not found or disabled. Ask the owner for access.";
+    loginError.textContent = ownerSetupNeeded
+      ? "No saved account was found at this website address. Return to owner setup to create one here."
+      : "Account not found or disabled. Ask the owner for access.";
     loginError.hidden = false;
     return;
   }
@@ -722,6 +745,7 @@ async function startApp() {
   loadDay(activeDate);
   const users = getUsers();
   if (!users.some(user => user.role === "owner")) {
+    ownerSetupNeeded = true;
     loginForm.hidden = true;
     ownerSetupForm.hidden = false;
     resetToggle.hidden = true;
