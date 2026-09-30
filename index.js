@@ -20,21 +20,43 @@ const form = document.getElementById("sale-form");
 const salesList = document.getElementById("sales-list");
 const emptyMessage = document.getElementById("empty-message");
 const dateInput = document.getElementById("business-date");
+const historicalDateNotice = document.getElementById("historical-date-notice");
 const startingCashInput = document.getElementById("starting-cash");
 const remittanceInput = document.getElementById("remittance-amount");
+const remittanceRequiredNotice = document.getElementById("remittance-required-notice");
 const shiftHistory = document.getElementById("shift-history");
+const shiftDisclosure = document.getElementById("shift-records-disclosure");
+const shiftDateFilter = document.getElementById("shift-date-filter");
 const activityHistory = document.getElementById("activity-history");
+const activityToggle = document.getElementById("toggle-activity-log");
+const activityDateFilter = document.getElementById("activity-date-filter");
 const ownerPanel = document.getElementById("owner-panel");
 const staffForm = document.getElementById("staff-form");
 const expenseForm = document.getElementById("expense-form");
 const expenseList = document.getElementById("expense-list");
 const emptyExpenses = document.getElementById("empty-expenses");
+const editSaleDialog = document.getElementById("edit-sale-dialog");
+const editSaleForm = document.getElementById("edit-sale-form");
+let editingSaleIndex = null;
 
 let sales = [];
 let expenses = [];
 let activeDate = getLocalDateString();
 let currentUser = null;
 let ownerSetupNeeded = false;
+
+activityToggle.addEventListener("click", () => {
+  const isExpanded = activityToggle.getAttribute("aria-expanded") === "true";
+  activityToggle.setAttribute("aria-expanded", String(!isExpanded));
+  activityToggle.textContent = isExpanded ? "Expand list" : "Collapse list";
+  activityHistory.hidden = isExpanded;
+});
+
+shiftDisclosure.addEventListener("toggle", () => {
+  shiftDisclosure.querySelector(".disclosure-label").textContent = shiftDisclosure.open ? "Collapse list" : "Expand list";
+});
+activityDateFilter.addEventListener("change", renderActivity);
+shiftDateFilter.addEventListener("change", renderShiftHistory);
 
 dateInput.value = activeDate;
 
@@ -43,6 +65,31 @@ function getLocalDateString(date = new Date()) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function isHistoricalDate() {
+  return activeDate < getLocalDateString();
+}
+
+function hasValidRemittanceEntry() {
+  const raw = remittanceInput.value.trim();
+  if (/^n\/a$/i.test(raw)) return true;
+  return /^\d+(?:\.\d{1,2})?$/.test(raw) && Number.isFinite(Number(raw)) && Number(raw) > 0;
+}
+
+function updateHistoricalMode() {
+  const readOnly = isHistoricalDate();
+  historicalDateNotice.hidden = !readOnly;
+  startingCashInput.disabled = readOnly;
+  remittanceInput.disabled = readOnly;
+  [form, expenseForm].forEach(recordForm => {
+    recordForm.querySelectorAll("input, select, button").forEach(control => {
+      control.disabled = readOnly;
+    });
+  });
+  document.getElementById("end-shift").disabled = readOnly || !hasValidRemittanceEntry();
+  remittanceRequiredNotice.hidden = readOnly || hasValidRemittanceEntry();
+  document.getElementById("clear-log").hidden = currentUser?.role !== "owner" || readOnly;
 }
 
 function getNextDateString(dateString) {
@@ -122,18 +169,36 @@ function recordActivity(action, details) {
   renderActivity();
 }
 
+function formatLogDate(dateString) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateString || "");
+  if (!match) return dateString || "Unknown date";
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+    .toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" });
+}
+
+function populateDateFilter(select, entries) {
+  const selectedDate = select.value;
+  const dates = [...new Set(entries.map(entry => entry.date).filter(Boolean))].sort().reverse();
+  select.replaceChildren(new Option("All dates", ""));
+  dates.forEach(date => select.add(new Option(formatLogDate(date), date)));
+  if (dates.includes(selectedDate)) select.value = selectedDate;
+}
+
 function renderActivity() {
   const activity = readStorage(ACTIVITY_STORAGE_KEY, []);
+  populateDateFilter(activityDateFilter, activity);
+  const selectedDate = activityDateFilter.value;
+  const visibleActivity = selectedDate ? activity.filter(entry => entry.date === selectedDate) : activity;
   activityHistory.replaceChildren();
-  if (!activity.length) {
+  if (!visibleActivity.length) {
     const message = document.createElement("p");
     message.className = "empty-message";
-    message.textContent = "No activity recorded yet.";
+    message.textContent = activity.length ? `No activity recorded for ${formatLogDate(selectedDate)}.` : "No activity recorded yet.";
     activityHistory.appendChild(message);
     return;
   }
 
-  [...activity].reverse().forEach(entry => {
+  [...visibleActivity].reverse().forEach(entry => {
     const row = document.createElement("div");
     row.className = "activity-entry";
     const time = document.createElement("time");
@@ -161,11 +226,17 @@ function showSalesPage(user) {
 
 function loadDay(date) {
   const allDays = readStorage(STORAGE_KEY, {});
-  const dayData = allDays[date] || { startingCash: 0, remittance: 0, sales: [], expenses: [] };
+  const dayData = allDays[date] || { startingCash: 0, remittance: "", sales: [], expenses: [] };
   sales = Array.isArray(dayData.sales) ? dayData.sales : [];
   expenses = Array.isArray(dayData.expenses) ? dayData.expenses : [];
   startingCashInput.value = dayData.startingCash || 0;
-  remittanceInput.value = dayData.remittance || 0;
+  // Older versions defaulted remittance to zero even when nobody entered it.
+  // Require staff to re-enter an amount or explicitly mark it N/A.
+  const savedRemittance = dayData.remittance;
+  const savedRemittanceNumber = Number(savedRemittance);
+  const isLegacyEmptyRemittance = savedRemittance !== "" && savedRemittance !== null && savedRemittance !== undefined &&
+    Number.isFinite(savedRemittanceNumber) && savedRemittanceNumber === 0;
+  remittanceInput.value = isLegacyEmptyRemittance ? "" : savedRemittance ?? "";
   render();
 }
 
@@ -173,11 +244,26 @@ function saveDay() {
   const allDays = readStorage(STORAGE_KEY, {});
   allDays[activeDate] = {
     startingCash: Number(startingCashInput.value) || 0,
-    remittance: Number(remittanceInput.value) || 0,
+    remittance: getRemittanceStoredValue(),
     sales,
     expenses
   };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(allDays));
+}
+
+function getRemittanceStoredValue() {
+  const raw = remittanceInput.value.trim();
+  if (/^n\/a$/i.test(raw)) return "N/A";
+  if (!raw) return "";
+  const amount = Number(raw);
+  return Number.isFinite(amount) ? amount : raw;
+}
+
+function getRemittanceAmount() {
+  const raw = remittanceInput.value.trim();
+  if (!raw || /^n\/a$/i.test(raw)) return 0;
+  const amount = Number(raw);
+  return Number.isFinite(amount) && amount >= 0 ? amount : 0;
 }
 
 function getTotals() {
@@ -195,21 +281,30 @@ function getTotals() {
     totalExpenses,
     startingCash,
     endingCash: startingCash + cashSales - totalExpenses,
-    remittance: Number(remittanceInput.value) || 0
+    remittance: getRemittanceAmount()
   };
 }
 
 function render() {
+  updateHistoricalMode();
   salesList.replaceChildren();
-  for (const sale of sales) {
+  for (const [index, sale] of sales.entries()) {
     const row = document.createElement("tr");
-    [sale.time, sale.item, sale.variation || "\u2014", sale.quantity, money(sale.price)].forEach(value => {
+    [
+      ["Time", sale.time],
+      ["Item", sale.item],
+      ["Variation", sale.variation || "\u2014"],
+      ["Quantity", sale.quantity],
+      ["Price", money(sale.price)]
+    ].forEach(([label, value]) => {
       const cell = document.createElement("td");
+      cell.dataset.label = label;
       cell.textContent = value;
       row.appendChild(cell);
     });
 
     const paymentCell = document.createElement("td");
+    paymentCell.dataset.label = "Payment";
     const paymentTag = document.createElement("span");
     paymentTag.className = `payment-tag ${sale.paymentMode}`;
     paymentTag.textContent = sale.paymentMode;
@@ -218,22 +313,37 @@ function render() {
 
     const amountCell = document.createElement("td");
     amountCell.className = "amount-cell";
+    amountCell.dataset.label = "Amount";
     amountCell.textContent = money(sale.price * sale.quantity);
     row.appendChild(amountCell);
 
     const staffCell = document.createElement("td");
+    staffCell.dataset.label = "Added by";
     staffCell.textContent = sale.addedBy || "Unknown";
     row.appendChild(staffCell);
 
     const actionCell = document.createElement("td");
-    if (currentUser?.role === "owner") {
+    actionCell.dataset.label = "Actions";
+    actionCell.className = "sales-actions-cell";
+    if (currentUser && !isHistoricalDate()) {
+      const editButton = document.createElement("button");
+      editButton.type = "button";
+      editButton.className = "edit-button";
+      editButton.textContent = "Edit";
+      editButton.addEventListener("click", () => {
+        if (!isHistoricalDate()) openSaleEditor(sale, index);
+      });
+      actionCell.appendChild(editButton);
+
       const removeButton = document.createElement("button");
       removeButton.type = "button";
       removeButton.className = "delete-button";
       removeButton.textContent = "Remove";
       removeButton.addEventListener("click", () => {
+        if (isHistoricalDate()) return;
+        if (!confirm(`Remove this sale: ${sale.item} × ${sale.quantity}?`)) return;
         recordActivity("Sale removed", `${sale.item} × ${sale.quantity} (added by ${sale.addedBy || "Unknown"})`);
-        sales = sales.filter(item => item.id !== sale.id);
+        sales.splice(index, 1);
         saveDay();
         render();
       });
@@ -249,9 +359,20 @@ function render() {
   document.getElementById("total-expenses").textContent = money(totals.totalExpenses);
   document.getElementById("ending-cash").textContent = money(totals.endingCash);
   emptyMessage.hidden = sales.length > 0;
-  document.getElementById("clear-log").hidden = currentUser?.role !== "owner";
   renderExpenses();
   renderShiftHistory();
+}
+
+function openSaleEditor(sale, index) {
+  if (isHistoricalDate()) return;
+  editingSaleIndex = index;
+  document.getElementById("edit-sale-item").value = sale.item || "";
+  document.getElementById("edit-sale-variation").value = sale.variation || "";
+  document.getElementById("edit-sale-quantity").value = sale.quantity || 1;
+  document.getElementById("edit-sale-price").value = sale.price || "";
+  document.getElementById("edit-sale-payment").value = sale.paymentMode === "online" ? "online" : "cash";
+  editSaleDialog.showModal();
+  document.getElementById("edit-sale-item").focus();
 }
 
 function renderExpenses() {
@@ -264,12 +385,13 @@ function renderExpenses() {
       row.appendChild(cell);
     });
     const actionCell = document.createElement("td");
-    if (currentUser?.role === "owner") {
+    if (currentUser?.role === "owner" && !isHistoricalDate()) {
       const removeButton = document.createElement("button");
       removeButton.type = "button";
       removeButton.className = "delete-button";
       removeButton.textContent = "Remove";
       removeButton.addEventListener("click", () => {
+        if (isHistoricalDate()) return;
         recordActivity("Expense removed", `${expense.name} for ${money(expense.amount)} (added by ${expense.addedBy || "Unknown"})`);
         expenses = expenses.filter(item => item.id !== expense.id);
         saveDay();
@@ -285,16 +407,19 @@ function renderExpenses() {
 
 function renderShiftHistory() {
   const shifts = readStorage(SHIFT_STORAGE_KEY, []);
+  populateDateFilter(shiftDateFilter, shifts);
+  const selectedDate = shiftDateFilter.value;
+  const visibleShifts = selectedDate ? shifts.filter(shift => shift.date === selectedDate) : shifts;
   shiftHistory.replaceChildren();
-  if (!shifts.length) {
+  if (!visibleShifts.length) {
     const message = document.createElement("p");
     message.className = "empty-message";
-    message.textContent = "No shifts have been saved yet.";
+    message.textContent = shifts.length ? `No shifts saved for ${formatLogDate(selectedDate)}.` : "No shifts have been saved yet.";
     shiftHistory.appendChild(message);
     return;
   }
 
-  [...shifts].reverse().forEach(shift => {
+  [...visibleShifts].reverse().forEach(shift => {
     const card = document.createElement("article");
     card.className = "shift-record";
     const heading = document.createElement("h3");
@@ -305,7 +430,8 @@ function renderShiftHistory() {
     const cashAfterRemittance = Number.isFinite(shift.cashAfterRemittance)
       ? shift.cashAfterRemittance
       : shift.endingCash - shift.remittance;
-    summary.textContent = `Starting cash: ${money(shift.startingCash)} · Total sales: ${money(shift.totalSales)} · Online: ${money(shift.onlinePayments)} · Expenses: ${money(shift.totalExpenses || 0)} · Expected ending cash: ${money(shift.endingCash)} · Remitted: ${money(shift.remittance)} · Cash left for next start: ${money(cashAfterRemittance)} · Difference: ${money(shift.remittance - shift.endingCash)}`;
+    const remittanceDisplay = shift.remittanceEntry === "N/A" ? "N/A" : money(shift.remittance);
+    summary.textContent = `Starting cash: ${money(shift.startingCash)} · Total sales: ${money(shift.totalSales)} · Online: ${money(shift.onlinePayments)} · Expenses: ${money(shift.totalExpenses || 0)} · Expected ending cash: ${money(shift.endingCash)} · Remitted: ${remittanceDisplay} · Cash left for next start: ${money(cashAfterRemittance)} · Difference: ${money(shift.remittance - shift.endingCash)}`;
     card.appendChild(summary);
 
     const details = document.createElement("details");
@@ -315,8 +441,9 @@ function renderShiftHistory() {
     details.appendChild(summaryLabel);
     if (shiftSales.length) {
       const tableWrap = document.createElement("div");
-      tableWrap.className = "table-wrap";
+      tableWrap.className = "table-wrap shift-review-table-wrap";
       const table = document.createElement("table");
+      table.className = "shift-review-table";
       const head = document.createElement("thead");
       const headerRow = document.createElement("tr");
       ["Time", "Item", "Variation", "Quantity", "Price", "Payment", "Amount", "Added by"].forEach(label => {
@@ -329,9 +456,11 @@ function renderShiftHistory() {
       const body = document.createElement("tbody");
       shiftSales.forEach(sale => {
         const row = document.createElement("tr");
-        [sale.time, sale.item, sale.variation || "\u2014", sale.quantity, money(sale.price), sale.paymentMode,
-          money(sale.price * sale.quantity), sale.addedBy || "Unknown"].forEach(value => {
+        [["Time", sale.time], ["Item", sale.item], ["Variation", sale.variation || "\u2014"],
+          ["Quantity", sale.quantity], ["Price", money(sale.price)], ["Payment", sale.paymentMode],
+          ["Amount", money(sale.price * sale.quantity)], ["Added by", sale.addedBy || "Unknown"]].forEach(([label, value]) => {
           const cell = document.createElement("td");
+          cell.dataset.label = label;
           cell.textContent = value;
           row.appendChild(cell);
         });
@@ -350,8 +479,9 @@ function renderShiftHistory() {
       expenseTitle.textContent = "Expenses";
       details.appendChild(expenseTitle);
       const expenseTableWrap = document.createElement("div");
-      expenseTableWrap.className = "table-wrap";
+      expenseTableWrap.className = "table-wrap shift-review-table-wrap";
       const expenseTable = document.createElement("table");
+      expenseTable.className = "shift-review-table";
       const expenseHead = document.createElement("thead");
       const expenseHeaderRow = document.createElement("tr");
       ["Time", "Expense", "Notes", "Amount", "Added by"].forEach(label => {
@@ -364,8 +494,10 @@ function renderShiftHistory() {
       const expenseBody = document.createElement("tbody");
       shiftExpenses.forEach(expense => {
         const row = document.createElement("tr");
-        [expense.time, expense.name, expense.notes || "—", money(expense.amount), expense.addedBy || "Unknown"].forEach(value => {
+        [["Time", expense.time], ["Expense", expense.name], ["Notes", expense.notes || "—"],
+          ["Amount", money(expense.amount)], ["Added by", expense.addedBy || "Unknown"]].forEach(([label, value]) => {
           const cell = document.createElement("td");
+          cell.dataset.label = label;
           cell.textContent = value;
           row.appendChild(cell);
         });
@@ -591,6 +723,7 @@ ownerSetupForm.addEventListener("submit", async event => {
 
 form.addEventListener("submit", event => {
   event.preventDefault();
+  if (isHistoricalDate()) return;
   const item = document.getElementById("itemselect").value;
   const variation = document.getElementById("variation").value.trim();
   const quantity = Number(document.getElementById("quantity").value);
@@ -613,8 +746,43 @@ form.addEventListener("submit", event => {
   document.getElementById("itemselect").focus();
 });
 
+document.getElementById("cancel-edit-sale").addEventListener("click", () => editSaleDialog.close());
+
+editSaleForm.addEventListener("submit", event => {
+  event.preventDefault();
+  if (isHistoricalDate()) {
+    editSaleDialog.close();
+    return;
+  }
+  const sale = sales[editingSaleIndex];
+  if (!sale) {
+    editSaleDialog.close();
+    return;
+  }
+
+  const item = document.getElementById("edit-sale-item").value.trim();
+  const variation = document.getElementById("edit-sale-variation").value.trim();
+  const quantity = Number(document.getElementById("edit-sale-quantity").value);
+  const price = Number(document.getElementById("edit-sale-price").value);
+  const paymentMode = document.getElementById("edit-sale-payment").value;
+  if (!item || !Number.isInteger(quantity) || quantity < 1 || !Number.isFinite(price) || price <= 0) {
+    alert("Enter an item, a valid quantity, and a price greater than zero.");
+    return;
+  }
+
+  const oldDetails = `${sale.item} × ${sale.quantity} at ${money(sale.price)} each (${sale.paymentMode})`;
+  Object.assign(sale, { item, variation, quantity, price, paymentMode });
+  const newDetails = `${item} × ${quantity} at ${money(price)} each (${paymentMode})`;
+  saveDay();
+  recordActivity("Sale edited", `${oldDetails} → ${newDetails} (originally added by ${sale.addedBy || "Unknown"})`);
+  editingSaleIndex = null;
+  editSaleDialog.close();
+  render();
+});
+
 expenseForm.addEventListener("submit", event => {
   event.preventDefault();
+  if (isHistoricalDate()) return;
   const name = document.getElementById("expense-name").value.trim();
   const amount = Number(document.getElementById("expense-amount").value);
   const notes = document.getElementById("expense-notes").value.trim();
@@ -653,24 +821,34 @@ document.getElementById("expenses-tab-button").addEventListener("click", () => {
 [startingCashInput, remittanceInput].forEach(input => {
   let previousValue = null;
   input.addEventListener("focus", () => { previousValue = input.value; });
-  input.addEventListener("input", () => { saveDay(); render(); });
+  input.addEventListener("input", () => {
+    if (isHistoricalDate()) return;
+    saveDay();
+    render();
+  });
   input.addEventListener("change", () => {
-    const currentValue = Number(input.value) || 0;
-    if (previousValue !== null && String(currentValue) !== String(Number(previousValue) || 0)) {
-      recordActivity(input === startingCashInput ? "Starting cash updated" : "Remittance updated", money(currentValue));
+    if (isHistoricalDate()) return;
+    const enteredValue = input.value.trim();
+    const previousEntry = previousValue?.trim();
+    if (previousValue !== null && enteredValue !== previousEntry) {
+      const details = input === remittanceInput
+        ? (/^n\/a$/i.test(enteredValue) ? "N/A (no cash remitted)" : enteredValue ? money(Number(enteredValue) || 0) : "blank")
+        : money(Number(enteredValue) || 0);
+      recordActivity(input === startingCashInput ? "Starting cash updated" : "Remittance updated", details);
     }
     previousValue = null;
   });
 });
 
 dateInput.addEventListener("change", () => {
+  if (editSaleDialog.open) editSaleDialog.close();
   activeDate = dateInput.value || getLocalDateString();
   dateInput.value = activeDate;
   loadDay(activeDate);
 });
 
 document.getElementById("clear-log").addEventListener("click", () => {
-  if (currentUser?.role !== "owner" || !confirm(`Clear all sales and expenses for ${activeDate}?`)) return;
+  if (isHistoricalDate() || currentUser?.role !== "owner" || !confirm(`Clear all sales and expenses for ${activeDate}?`)) return;
   const clearedSalesCount = sales.length;
   const clearedExpensesCount = expenses.length;
   sales = [];
@@ -681,6 +859,21 @@ document.getElementById("clear-log").addEventListener("click", () => {
 });
 
 document.getElementById("end-shift").addEventListener("click", () => {
+  if (isHistoricalDate()) return;
+  const remittanceEntry = remittanceInput.value.trim();
+  if (!remittanceEntry) {
+    alert("Enter the remittance amount, or type N/A if there was no cash remittance today.");
+    remittanceInput.focus();
+    return;
+  }
+  const noRemittance = /^n\/a$/i.test(remittanceEntry);
+  const enteredRemittance = Number(remittanceEntry);
+  const validAmountFormat = /^\d+(?:\.\d{1,2})?$/.test(remittanceEntry);
+  if (!noRemittance && (!validAmountFormat || !Number.isFinite(enteredRemittance) || enteredRemittance <= 0)) {
+    alert("Enter a remittance amount greater than zero, or type N/A if there was no cash remittance today.");
+    remittanceInput.focus();
+    return;
+  }
   const totals = getTotals();
   const cashAfterRemittance = totals.endingCash - totals.remittance;
   if (cashAfterRemittance < 0) {
@@ -688,7 +881,18 @@ document.getElementById("end-shift").addEventListener("click", () => {
     return;
   }
   const nextDate = getNextDateString(activeDate);
-  if (!confirm(`Save and end the shift for ${activeDate}? ${money(cashAfterRemittance)} will be carried forward as Starting Cash for ${nextDate}.`)) return;
+  const allDays = readStorage(STORAGE_KEY, {});
+  const savedNextDay = allDays[nextDate];
+  const nextDayHasData = savedNextDay && (
+    Number(savedNextDay.startingCash) !== 0 ||
+    Number(savedNextDay.remittance) !== 0 ||
+    (Array.isArray(savedNextDay.sales) && savedNextDay.sales.length > 0) ||
+    (Array.isArray(savedNextDay.expenses) && savedNextDay.expenses.length > 0)
+  );
+  const nextDayNotice = nextDayHasData
+    ? ` Any existing tracker data for ${nextDate} will be cleared.`
+    : " The next day will start with a fresh sales and expense log.";
+  if (!confirm(`Save and end the shift for ${activeDate}? ${money(cashAfterRemittance)} will be carried forward as Starting Cash for ${nextDate}.${nextDayNotice}`)) return;
 
   const shifts = readStorage(SHIFT_STORAGE_KEY, []);
   shifts.push({
@@ -696,6 +900,7 @@ document.getElementById("end-shift").addEventListener("click", () => {
     date: activeDate,
     endedAt: new Date().toLocaleString(),
     ...totals,
+    remittanceEntry: noRemittance ? "N/A" : totals.remittance,
     cashAfterRemittance,
     closedBy: currentUser.name,
     sales: sales.map(sale => ({ ...sale })),
@@ -703,13 +908,15 @@ document.getElementById("end-shift").addEventListener("click", () => {
   });
   localStorage.setItem(SHIFT_STORAGE_KEY, JSON.stringify(shifts));
 
-  const allDays = readStorage(STORAGE_KEY, {});
-  const nextDay = allDays[nextDate] || { startingCash: 0, remittance: 0, sales: [], expenses: [] };
-  nextDay.startingCash = cashAfterRemittance;
-  allDays[nextDate] = nextDay;
+  allDays[nextDate] = {
+    startingCash: cashAfterRemittance,
+    remittance: "",
+    sales: [],
+    expenses: []
+  };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(allDays));
 
-  recordActivity("Shift ended", `remitted ${money(totals.remittance)}; ${money(cashAfterRemittance)} carried forward as ${nextDate} starting cash`);
+  recordActivity("Shift ended", `remitted ${noRemittance ? "N/A" : money(totals.remittance)}; ${money(cashAfterRemittance)} carried forward as ${nextDate} starting cash`);
   activeDate = nextDate;
   dateInput.value = nextDate;
   loadDay(nextDate);

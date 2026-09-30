@@ -87,6 +87,10 @@
       </div>
     </header>
 
+    <p id="historical-date-notice" class="historical-date-notice" role="status" hidden>
+      You are viewing a previous date. Its records are read-only.
+    </p>
+
     <nav class="tab-nav" aria-label="Sales tracker sections">
       <button class="tab-button active" id="sales-tab-button" type="button">Sales</button>
       <button class="tab-button" id="expenses-tab-button" type="button">Expenses</button>
@@ -123,11 +127,14 @@
       </article>
 
       <label class="summary-card">
-        <span>Remittance Amount</span>
+        <span>Remittance amount (enter N/A if none)</span>
         <div class="currency-input">
           <span>&#8369;</span>
-          <input id="remittance-amount" type="number" min="0" step="0.01" value="0">
+          <input id="remittance-amount" type="text" inputmode="text" maxlength="20" placeholder="Amount or N/A" value="">
         </div>
+        <small id="remittance-required-notice" class="remittance-required-notice" role="alert" hidden>
+          Enter a remittance amount or N/A before ending the shift.
+        </small>
       </label>
     </section>
 
@@ -228,11 +235,11 @@
         <button class="secondary-button" id="clear-log" type="button">
           Clear today’s sales &amp; expenses
         </button>
-        <button class="primary-button" id="end-shift" type="button">End shift &amp; save</button>
+        <button class="primary-button" id="end-shift" type="button" disabled>End shift &amp; save</button>
       </div>
 
       <div class="table-wrap">
-        <table>
+        <table class="sales-log-table">
           <thead>
             <tr>
               <th>Time</th>
@@ -254,6 +261,41 @@
         </p>
       </div>
     </section>
+
+    <dialog id="edit-sale-dialog" class="edit-sale-dialog" aria-labelledby="edit-sale-title">
+      <form id="edit-sale-form">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">UPDATE RECORD</p>
+            <h2 id="edit-sale-title">Edit sale</h2>
+          </div>
+        </div>
+        <div class="edit-sale-fields">
+          <label>Item purchased
+            <input id="edit-sale-item" type="text" list="product-options" maxlength="120" required>
+          </label>
+          <label>Item variant
+            <input id="edit-sale-variation" type="text" maxlength="100">
+          </label>
+          <label>Quantity
+            <input id="edit-sale-quantity" type="number" min="1" step="1" required>
+          </label>
+          <label>Price per item (₱)
+            <input id="edit-sale-price" type="number" min="0.01" step="0.01" required>
+          </label>
+          <label>Mode of payment
+            <select id="edit-sale-payment" required>
+              <option value="cash">Cash</option>
+              <option value="online">Online</option>
+            </select>
+          </label>
+        </div>
+        <div class="dialog-actions">
+          <button class="secondary-button" id="cancel-edit-sale" type="button">Cancel</button>
+          <button class="primary-button" type="submit">Save changes</button>
+        </div>
+      </form>
+    </dialog>
 
     </div>
 
@@ -309,10 +351,21 @@
           <p class="eyebrow">SAVED FOR REVIEW</p>
           <h2>Shift records</h2>
         </div>
+        <label class="log-date-filter">
+          Shift date
+          <select id="shift-date-filter">
+            <option value="">All dates</option>
+          </select>
+        </label>
       </div>
-      <div id="shift-history" class="shift-history">
-        <p class="empty-message" id="empty-shifts">No shifts have been saved yet.</p>
-      </div>
+      <details id="shift-records-disclosure" class="shift-records-disclosure" open>
+        <summary class="disclosure-summary">
+          <span class="secondary-button disclosure-label">Collapse list</span>
+        </summary>
+        <div id="shift-history" class="shift-history">
+          <p class="empty-message" id="empty-shifts">No shifts have been saved yet.</p>
+        </div>
+      </details>
     </section>
 
     <section class="panel" id="owner-panel" hidden>
@@ -343,6 +396,15 @@
         <div>
           <p class="eyebrow">STAFF ACTIONS</p>
           <h2>Activity log</h2>
+        </div>
+        <div class="log-tools">
+          <label class="log-date-filter">
+            Activity date
+            <select id="activity-date-filter">
+              <option value="">All dates</option>
+            </select>
+          </label>
+          <button class="secondary-button" id="toggle-activity-log" type="button" aria-expanded="true" aria-controls="activity-history">Collapse list</button>
         </div>
       </div>
       <div id="activity-history" class="activity-history">
