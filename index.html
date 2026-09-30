@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ALAPAAP LOG BOOK</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="page login-page" id="login-page">
+    <section class="panel login-panel">
+      <p class="eyebrow">STAFF ACCESS</p>
+      <h1>Sign in to the sales log</h1>
+      <p class="login-description" id="login-description">Sign in with your staff account.</p>
+      <p class="security-note">This browser-only version stores records on this device. It is not secure against someone with access to the browser or source files.</p>
+      <form id="login-form">
+        <label>
+          Username
+          <input id="login-name" type="text" autocomplete="username" required maxlength="60" placeholder="Your name">
+        </label>
+        <label>
+          Password
+          <input id="login-password" type="password" autocomplete="current-password" required>
+        </label>
+        <p class="auth-error" id="login-error" role="alert" hidden></p>
+        <button class="primary-button" type="submit">Sign in</button>
+      </form>
+      <button class="text-button" id="show-password-reset" type="button">Change or reset password</button>
+      <form id="password-reset-form" hidden>
+        <p class="login-description">Enter your username, password change code, and a new password.</p>
+        <label>
+          Username
+          <input id="reset-name" type="text" autocomplete="username" required maxlength="60">
+        </label>
+        <label>
+          Password change code
+          <input id="reset-code" type="password" inputmode="numeric" required>
+        </label>
+        <label>
+          New password (at least 8 characters)
+          <input id="reset-password" type="password" autocomplete="new-password" minlength="8" required>
+        </label>
+        <label>
+          Confirm new password
+          <input id="reset-password-confirm" type="password" autocomplete="new-password" minlength="8" required>
+        </label>
+        <p class="auth-error" id="reset-error" role="alert" hidden></p>
+        <button class="primary-button" type="submit">Save new password</button>
+        <button class="text-button" id="hide-password-reset" type="button">Back to sign in</button>
+      </form>
+      <form id="owner-setup-form" hidden>
+        <p class="login-description">First-time setup: create the owner password for Renzo.</p>
+        <label>
+          Owner password (at least 8 characters)
+          <input id="owner-password" type="password" autocomplete="new-password" minlength="8" required>
+        </label>
+        <label>
+          Confirm owner password
+          <input id="owner-password-confirm" type="password" autocomplete="new-password" minlength="8" required>
+        </label>
+        <p class="auth-error" id="setup-error" role="alert" hidden></p>
+        <button class="primary-button" type="submit">Set up Renzo owner account</button>
+      </form>
+    </section>
+  </main>
+
+  <main class="page" id="sales-page" hidden>
+    <header class="page-header">
+      <div>
+        <p class="eyebrow">ALAPAAP VAPER'S ST0P LOG BOOK</p>
+        <h1>Daily Sales</h1>
+      </div>
+
+      <label class="date-field">
+        Business date
+        <input type="date" id="business-date">
+      </label>
+      <div class="staff-session">
+        <span>Signed in as <strong id="current-staff"></strong></span>
+        <button class="secondary-button" id="logout-button" type="button">Sign out</button>
+      </div>
+    </header>
+
+    <nav class="tab-nav" aria-label="Sales tracker sections">
+      <button class="tab-button active" id="sales-tab-button" type="button">Sales</button>
+      <button class="tab-button" id="expenses-tab-button" type="button">Expenses</button>
+    </nav>
+
+    <div id="sales-tab" class="tab-content">
+    <section class="summary" aria-label="Daily totals">
+      <label class="summary-card">
+        <span>Starting Cash</span>
+        <div class="currency-input">
+          <span>₱</span>
+          <input id="starting-cash" type="number" min="0" step="0.01" value="0">
+        </div>
+      </label>
+
+      <article class="summary-card">
+        <span>Total Sales</span>
+        <strong id="total-sales">₱0.00</strong>
+      </article>
+
+      <article class="summary-card">
+        <span>Online Payment</span>
+        <strong id="online-payment">₱0.00</strong>
+      </article>
+
+      <article class="summary-card">
+        <span>Total Expenses</span>
+        <strong id="total-expenses">&#8369;0.00</strong>
+      </article>
+
+      <article class="summary-card ending-card">
+        <span>Ending Cash</span>
+        <strong id="ending-cash">₱0.00</strong>
+      </article>
+
+      <label class="summary-card">
+        <span>Remittance Amount</span>
+        <div class="currency-input">
+          <span>&#8369;</span>
+          <input id="remittance-amount" type="number" min="0" step="0.01" value="0">
+        </div>
+      </label>
+    </section>
+
+    <section class="panel">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">RECORD A TRANSACTION</p>
+          <h2>Add sale</h2>
+        </div>
+      </div>
+
+      <form id="sale-form">
+        <div class="form-grid">
+          <label>
+            Item purchased
+            <input id="itemselect" list="product-options" type="text" required autocomplete="off" placeholder="Select from the list or type a product">
+            <datalist id="product-options">
+              <option value="PASTRY VAPOR 3MG&amp;6MG"></option>
+              <option value="AMZ BATTERY"></option>
+              <option value="AMZ POD"></option>
+              <option value="BLACKPOD FORMULA"></option>
+              <option value="DEADWOOD RY4 12MG"></option>
+              <option value="DEADWOOD RY4 24MG"></option>
+              <option value="DEADWOOD RY4 3MG&amp;6MG"></option>
+              <option value="DEADWOOD SALTNIC"></option>
+              <option value="FUNKY MONKEY BATTERY"></option>
+              <option value="FUNKY MONKEY PODS"></option>
+              <option value="HAVOC HIGH"></option>
+              <option value="HAVOC LOW"></option>
+              <option value="HAVOC MID"></option>
+              <option value="NEXLIM CARTRIDGE"></option>
+              <option value="NEXLIM DEVICE"></option>
+              <option value="PASTRY VAPOR 12MG"></option>
+              <option value="QIRIN BATTERY"></option>
+              <option value="QIRIN POD"></option>
+              <option value="RELX DEVICE"></option>
+              <option value="RELX POD"></option>
+              <option value="RELX WECREATE BATTERY"></option>
+              <option value="RELX WECREATE POD"></option>
+              <option value="SMUG CARTRIDGE"></option>
+              <option value="STAREX"></option>
+              <option value="V1 BATTERY"></option>
+              <option value="V1 PODS"></option>
+              <option value="V2 BATTERY"></option>
+              <option value="V2 PODS"></option>
+              <option value="WIGOL SUPREMO 12MG"></option>
+              <option value="WIGOL SUPREMO 24MG"></option>
+              <option value="X-AERO"></option>
+              <option value="XLIM CARTRIDGE"></option>
+              <option value="XVAPE SLIMBAR"></option>
+              <option value="XVAPE SLIMBAR BATTERY"></option>
+              <option value="XVAPE ULTRA"></option>
+              <option value="XVAPE ULTRA BATTERY"></option>
+              <option value="XLIM PRO 2 COPY"></option>
+              <option value="CHILLAX INFINITE KIT"></option>
+              <option value="CHILLAX INFINITE POD"></option>
+              <option value="CHILLAX INFINITE BATTERY"></option>
+              <option value="PASTRY VAPORS POD FORMULA"></option>
+              <option value="Ice Pod Formula"></option>
+            </datalist>
+          </label>
+
+          <label>
+            Item variant
+            <input id="variation" type="text" placeholder="e.g. color or flavor">
+          </label>
+
+          <label>
+            Quantity
+            <input id="quantity" type="number" min="1" step="1" value="1" required>
+          </label>
+
+          <label>
+            Price per item (₱)
+            <input id="price" type="number" min="0.01" step="0.01" placeholder="0.00" required>
+          </label>
+
+          <label>
+            Mode of payment
+            <select id="payment-mode" required>
+              <option value="cash">Cash</option>
+              <option value="online">Online</option>
+            </select>
+          </label>
+
+          <button class="primary-button" type="submit">Add sale</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel">
+      <div class="section-heading log-heading">
+        <div>
+          <p class="eyebrow">TODAY’S RECORD</p>
+          <h2>Sales log</h2>
+        </div>
+
+        <button class="secondary-button" id="clear-log" type="button">
+          Clear today’s sales &amp; expenses
+        </button>
+        <button class="primary-button" id="end-shift" type="button">End shift &amp; save</button>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Item</th>
+              <th>Variation</th>
+              <th>Quantity</th>
+              <th>Price</th>
+              <th>Payment</th>
+              <th>Amount</th>
+              <th>Added by</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="sales-list"></tbody>
+        </table>
+
+        <p class="empty-message" id="empty-message">
+          No sales recorded for this date.
+        </p>
+      </div>
+    </section>
+
+    </div>
+
+    <section id="expenses-tab" class="tab-content" hidden>
+      <section class="panel">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">CASH EXPENSES</p>
+            <h2>Record an expense</h2>
+          </div>
+        </div>
+        <form id="expense-form">
+          <div class="form-grid expense-form-grid">
+            <label>
+              Expense name
+              <input id="expense-name" type="text" maxlength="100" placeholder="e.g. Store supplies" required>
+            </label>
+            <label>
+              Amount (₱)
+              <input id="expense-amount" type="number" min="0.01" step="0.01" placeholder="0.00" required>
+            </label>
+            <label>
+              Notes (optional)
+              <input id="expense-notes" type="text" maxlength="200" placeholder="Additional details">
+            </label>
+            <button class="primary-button" type="submit">Add expense</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">TODAY’S RECORD</p>
+            <h2>Expense log</h2>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Time</th><th>Expense</th><th>Notes</th><th>Amount</th><th>Added by</th><th></th></tr>
+            </thead>
+            <tbody id="expense-list"></tbody>
+          </table>
+          <p class="empty-message" id="empty-expenses">No expenses recorded for this date.</p>
+        </div>
+      </section>
+    </section>
+
+    <section class="panel">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">SAVED FOR REVIEW</p>
+          <h2>Shift records</h2>
+        </div>
+      </div>
+      <div id="shift-history" class="shift-history">
+        <p class="empty-message" id="empty-shifts">No shifts have been saved yet.</p>
+      </div>
+    </section>
+
+    <section class="panel" id="owner-panel" hidden>
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">OWNER ACCESS</p>
+          <h2>Owner tools</h2>
+        </div>
+        <button class="secondary-button" id="export-data" type="button">Export business data</button>
+      </div>
+      <form id="staff-form" class="staff-form">
+        <label>
+          New staff username
+          <input id="new-staff-name" type="text" maxlength="60" required>
+        </label>
+        <label>
+          Temporary password (at least 8 characters)
+          <input id="new-staff-password" type="password" minlength="8" autocomplete="new-password" required>
+        </label>
+        <button class="primary-button" type="submit">Create staff account</button>
+      </form>
+      <h3>Staff accounts</h3>
+      <div id="staff-list" class="staff-list"></div>
+    </section>
+
+    <section class="panel">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">STAFF ACTIONS</p>
+          <h2>Activity log</h2>
+        </div>
+      </div>
+      <div id="activity-history" class="activity-history">
+        <p class="empty-message">No activity recorded yet.</p>
+      </div>
+    </section>
+
+    <p class="footnote">
+      Ending cash = starting cash + cash sales − expenses. Online payments are excluded from the drawer.
+    </p>
+  </main>
+
+  <script src="index.js"></script>
+</body>
+</html>
