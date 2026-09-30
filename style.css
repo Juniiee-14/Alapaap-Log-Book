@@ -33,6 +33,25 @@ body {
   width: min(460px, 100%);
 }
 
+.powered-by {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  margin: 0 auto 22px;
+  color: #65736a;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.powered-by img {
+  display: block;
+  width: min(180px, 65%);
+  height: auto;
+  object-fit: contain;
+}
+
 .login-panel h1 {
   margin-bottom: 12px;
   font-size: 2rem;
