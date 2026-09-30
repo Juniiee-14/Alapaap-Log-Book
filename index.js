@@ -45,6 +45,13 @@ function getLocalDateString(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
+function getNextDateString(dateString) {
+  const [year, month, day] = dateString.split("-").map(Number);
+  const nextDate = new Date(year, month - 1, day);
+  nextDate.setDate(nextDate.getDate() + 1);
+  return getLocalDateString(nextDate);
+}
+
 function money(amount) {
   return `\u20B1${Number(amount).toLocaleString("en-PH", {
     minimumFractionDigits: 2,
@@ -295,7 +302,10 @@ function renderShiftHistory() {
     card.appendChild(heading);
     const summary = document.createElement("p");
     const shiftExpenses = Array.isArray(shift.expenses) ? shift.expenses : [];
-    summary.textContent = `Starting cash: ${money(shift.startingCash)} · Total sales: ${money(shift.totalSales)} · Online: ${money(shift.onlinePayments)} · Expenses: ${money(shift.totalExpenses || 0)} · Expected ending cash: ${money(shift.endingCash)} · Remitted: ${money(shift.remittance)} · Difference: ${money(shift.remittance - shift.endingCash)}`;
+    const cashAfterRemittance = Number.isFinite(shift.cashAfterRemittance)
+      ? shift.cashAfterRemittance
+      : shift.endingCash - shift.remittance;
+    summary.textContent = `Starting cash: ${money(shift.startingCash)} · Total sales: ${money(shift.totalSales)} · Online: ${money(shift.onlinePayments)} · Expenses: ${money(shift.totalExpenses || 0)} · Expected ending cash: ${money(shift.endingCash)} · Remitted: ${money(shift.remittance)} · Cash left for next start: ${money(cashAfterRemittance)} · Difference: ${money(shift.remittance - shift.endingCash)}`;
     card.appendChild(summary);
 
     const details = document.createElement("details");
@@ -671,22 +681,39 @@ document.getElementById("clear-log").addEventListener("click", () => {
 });
 
 document.getElementById("end-shift").addEventListener("click", () => {
-  if (!confirm(`Save and end the shift for ${activeDate}?`)) return;
   const totals = getTotals();
+  const cashAfterRemittance = totals.endingCash - totals.remittance;
+  if (cashAfterRemittance < 0) {
+    alert("Remittance cannot be greater than the expected ending cash. Check the amounts before ending the shift.");
+    return;
+  }
+  const nextDate = getNextDateString(activeDate);
+  if (!confirm(`Save and end the shift for ${activeDate}? ${money(cashAfterRemittance)} will be carried forward as Starting Cash for ${nextDate}.`)) return;
+
   const shifts = readStorage(SHIFT_STORAGE_KEY, []);
   shifts.push({
     id: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`,
     date: activeDate,
     endedAt: new Date().toLocaleString(),
     ...totals,
+    cashAfterRemittance,
     closedBy: currentUser.name,
     sales: sales.map(sale => ({ ...sale })),
     expenses: expenses.map(expense => ({ ...expense }))
   });
   localStorage.setItem(SHIFT_STORAGE_KEY, JSON.stringify(shifts));
-  recordActivity("Shift ended", `remittance ${money(totals.remittance)}; expected cash ${money(totals.endingCash)}`);
-  renderShiftHistory();
-  alert("Shift saved for review.");
+
+  const allDays = readStorage(STORAGE_KEY, {});
+  const nextDay = allDays[nextDate] || { startingCash: 0, remittance: 0, sales: [], expenses: [] };
+  nextDay.startingCash = cashAfterRemittance;
+  allDays[nextDate] = nextDay;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(allDays));
+
+  recordActivity("Shift ended", `remitted ${money(totals.remittance)}; ${money(cashAfterRemittance)} carried forward as ${nextDate} starting cash`);
+  activeDate = nextDate;
+  dateInput.value = nextDate;
+  loadDay(nextDate);
+  alert(`Shift saved for review. The tracker is now ready for ${nextDate}.`);
 });
 
 document.getElementById("logout-button").addEventListener("click", () => {
