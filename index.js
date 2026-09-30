@@ -70,9 +70,16 @@ function saveUsers(users) {
   localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
 }
 
+function getCryptoUnavailableMessage() {
+  if (!window.isSecureContext) {
+    return "Password setup needs a secure page. Open the GitHub Pages address beginning with https://, not the http:// computer address.";
+  }
+  return "This browser or in-app webview does not provide Web Crypto. Open the HTTPS page directly in an updated Chrome, Edge, Firefox, or Safari browser.";
+}
+
 function getRandomBytes(length) {
   if (!globalThis.crypto?.getRandomValues || !globalThis.crypto?.subtle) {
-    throw new Error("Password security requires a modern browser. Open this page using VS Code Live Server or HTTPS.");
+    throw new Error(getCryptoUnavailableMessage());
   }
   return crypto.getRandomValues(new Uint8Array(length));
 }
@@ -83,7 +90,7 @@ function bytesToBase64(bytes) {
 
 async function hashPassword(password, saltValue) {
   if (!globalThis.crypto?.subtle) {
-    throw new Error("Password security requires a modern browser. Open this page using VS Code Live Server or HTTPS.");
+    throw new Error(getCryptoUnavailableMessage());
   }
   const salt = saltValue ? Uint8Array.from(atob(saltValue), character => character.charCodeAt(0)) : getRandomBytes(16);
   const material = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
